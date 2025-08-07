@@ -1,22 +1,42 @@
 import Foundation
 import Combine
 
+@MainActor
 final class DeviceListViewModel: ObservableObject {
     @Published var devices: [Device] = []
     @Published var showBatteryAlert = false
 
-    private var timer: AnyCancellable?
-    private let updateInterval = Double.random(in: 3...5)
+    let provider: DevicesProvider
+    private var timer: Timer?
+    private var timerCancellable: AnyCancellable?
 
-    init() {
-        resetDevices()
+    init(provider: DevicesProvider) {
+        self.provider = provider
+        loadInitialData()
         startTimer()
     }
 
-    func resetDevices() {
-        devices = (1...10).map {
-            Device(id: UUID(), name: "Device \($0)", isOnline: true, batteryLevel: 100, lastSeen: Date())
-        }
+    func loadInitialData() {
+        devices = provider.fetchInitialDevices()
+    }
+
+    func refresh() {
+        devices = provider.fetchInitialDevices()
+    }
+
+    func startTimer() {
+        timerCancellable = Timer
+            .publish(every: 4.0, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.updateStatuses()
+            }
+    }
+    
+    private func updateStatuses() {
+        devices = provider.updateDeviceStatuses(current: devices)
+        showBatteryAlert = devices.contains { $0.batteryLevel < 20 }
     }
 
     func toggleStatus(for device: Device) {
@@ -28,27 +48,17 @@ final class DeviceListViewModel: ObservableObject {
         }
     }
 
-    func startTimer() {
-        timer = Timer.publish(every: updateInterval, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                guard let self = self else { return }
-
-                for i in devices.indices {
-                    devices[i].updateStatus()
-                }
-
-                if devices.contains(where: { $0.batteryLevel < 20 }) {
-                    showBatteryAlert = true
-                }
-            }
-    }
-
-    func stopTimer() {
-        timer?.cancel()
+    func statusText(for device: Device) -> String {
+        if device.isOnline {
+            return "Online".localized()
+        } else {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .short
+            return "Last seen: \(formatter.localizedString(for: device.lastSeen, relativeTo: Date()))"
+        }
     }
 
     deinit {
-        stopTimer()
+        timer?.invalidate()
     }
 }
