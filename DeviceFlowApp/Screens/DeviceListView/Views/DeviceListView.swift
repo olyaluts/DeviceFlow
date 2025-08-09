@@ -1,16 +1,12 @@
 import Foundation
 import SwiftUI
 
-import SwiftUI
-
 struct DeviceListView: View {
     @Environment(\.dependencies) private var dependencies
     @StateObject private var viewModel: DeviceListViewModel
 
-    init() {
-        _viewModel = StateObject(wrappedValue: DeviceListViewModel(
-            provider: DependencyContainer.default.devicesProvider
-        ))
+    init(viewModel: DeviceListViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
     }
 
     var body: some View {
@@ -29,8 +25,11 @@ struct DeviceListView: View {
                     }
                 }
             }
+            .task {
+                viewModel.loadInitialData()
+            }
             .refreshable {
-                viewModel.refresh()
+                await viewModel.refresh()
             }
             .alert("Low Battery!", isPresented: $viewModel.showBatteryAlert) {
                 Button("OK", role: .cancel) { }
@@ -42,6 +41,15 @@ struct DeviceListView: View {
 
 struct DeviceListView_Previews: PreviewProvider {
     static var previews: some View {
-        DeviceListView()
+        let mockDevices = [
+            Device(id: UUID(), name: "iPhone 13", isOnline: true, batteryLevel: 87, lastSeen: Date()),
+            Device(id: UUID(), name: "iPad Air", isOnline: false, batteryLevel: 15, lastSeen: Date().addingTimeInterval(-300)),
+            Device(id: UUID(), name: "iPhone 14", isOnline: true, batteryLevel: 100, lastSeen: Date())
+        ]
+        
+        let mockProvider = MockDevicesService(initialDevices: mockDevices)
+        let mockViewModel = DeviceListViewModel(provider: mockProvider)
+        
+        return DeviceListView(viewModel: mockViewModel)
     }
 }

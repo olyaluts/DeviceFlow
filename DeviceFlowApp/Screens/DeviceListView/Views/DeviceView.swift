@@ -1,17 +1,30 @@
 import SwiftUI
 
-import SwiftUI
-
 struct DeviceView: View {
+    struct DeviceViewConfiguration {
+        let onlineColor: Color
+        let offlineColor: Color
+        let foregroundTextColor: Color
+        
+        init() {
+            onlineColor = .green
+            offlineColor = .red
+            foregroundTextColor = .gray
+        }
+    }
+    
     let name: String
     let isOnline: Bool
     let batteryLevel: Int
     let lastSeenStatus: String
+    let configuration: DeviceViewConfiguration = .init()
 
     var body: some View {
         HStack {
             Circle()
-                .fill(isOnline ? .green : .red)
+                .fill(
+                    isOnline ? configuration.onlineColor : configuration.offlineColor
+                )
                 .frame(width: 12, height: 12)
 
             VStack(alignment: .leading) {
@@ -23,9 +36,8 @@ struct DeviceView: View {
 
                 Text(lastSeenStatus)
                     .font(.caption)
-                    .foregroundColor(.gray)
+                    .foregroundColor(configuration.foregroundTextColor)
             }
-
             Spacer()
         }
         .padding(.vertical, 4)

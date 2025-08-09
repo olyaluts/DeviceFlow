@@ -15,3 +15,23 @@ final class DevicesService: ObservableObject, DevicesProvider {
         }
     }
 }
+
+final class MockDevicesService: DevicesProvider {
+    private let initialDevices: [Device]
+    
+    init(initialDevices: [Device]) {
+        self.initialDevices = initialDevices
+    }
+
+    func fetchInitialDevices() -> [Device] {
+        initialDevices
+    }
+
+    func updateDeviceStatuses(current: [Device]) -> [Device] {
+        return current.map {
+            var updated = $0
+            updated.batteryLevel = max(0, updated.batteryLevel - 1)
+            return updated
+        }
+    }
+}
