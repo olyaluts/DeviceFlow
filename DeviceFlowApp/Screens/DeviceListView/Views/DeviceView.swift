@@ -7,9 +7,9 @@ struct DeviceView: View {
         let foregroundTextColor: Color
         
         init() {
-            onlineColor = .green
-            offlineColor = .red
-            foregroundTextColor = .gray
+            onlineColor = Color("OnlineGreen")
+            offlineColor = Color("OfflineRed")
+            foregroundTextColor = Color("CustomGray")
         }
     }
     

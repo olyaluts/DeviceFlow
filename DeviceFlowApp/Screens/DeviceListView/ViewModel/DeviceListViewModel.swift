@@ -8,7 +8,6 @@ final class DeviceListViewModel: ObservableObject {
     
     let provider: DevicesProvider
     private var manuallyToggledIDs: Set<UUID> = []
-    private var timer: Timer?
     private var timerCancellable: AnyCancellable?
     
     init(provider: DevicesProvider) {
@@ -30,34 +29,82 @@ final class DeviceListViewModel: ObservableObject {
             .publish(every: 4.0, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
-                guard let self else { return }
-                self.updateStatuses()
+                self?.updateStatuses()
             }
     }
     
     private func updateStatuses() {
-        let updated = provider.updateDeviceStatuses(current: devices)
+        let updatedDevices = provider.updateDeviceStatuses(current: devices)
+        let currentDevicesById = Dictionary(uniqueKeysWithValues: devices.map { ($0.id, $0) })
+        let now = Date()
         
-        devices = updated.map { newItem in
-            guard manuallyToggledIDs.contains(newItem.id),
-                  let current = devices.first(where: { $0.id == newItem.id }) else {
-                return newItem
+        var isLowBatteryDeviceFound = false
+        var manuallyChangedIDs = manuallyToggledIDs
+        var resultDevices: [Device] = []
+        resultDevices.reserveCapacity(updatedDevices.count)
+        
+        updatedDevices.forEach { updatedDevice in
+            var device = updatedDevice
+            
+            if manuallyChangedIDs.contains(device.id),
+               let currentDevice = currentDevicesById[device.id] {
+                device.isOnline = currentDevice.isOnline
+                device.lastSeen = currentDevice.lastSeen
             }
-            var merged = newItem
-            merged.isOnline = current.isOnline
-            merged.lastSeen = current.lastSeen
-            return merged
+            
+            let (processedDevice, newIDs) = applyZeroBattery(
+                for: device,
+                now: now,
+                manuallyChangedIDs: manuallyChangedIDs
+            )
+            device = processedDevice
+            manuallyChangedIDs = newIDs
+            
+            if device.batteryLevel < 20 {
+                isLowBatteryDeviceFound = true
+            }
+            
+            resultDevices.append(device)
         }
         
-        showBatteryAlert = devices.contains { $0.batteryLevel < 20 }
+        devices = resultDevices
+        manuallyToggledIDs = manuallyChangedIDs
+        showBatteryAlert = isLowBatteryDeviceFound
     }
     
+    private func applyZeroBattery(
+        for device: Device,
+        now: Date,
+        manuallyChangedIDs: Set<UUID>
+    ) -> (Device, Set<UUID>) {
+        guard device.batteryLevel <= 0 else {
+            return (device, manuallyChangedIDs)
+        }
+        
+        var updatedDevice = device
+        updatedDevice.batteryLevel = 0
+        if updatedDevice.isOnline {
+            updatedDevice.isOnline = false
+            updatedDevice.lastSeen = now
+        }
+        
+        var updatedIDs = manuallyChangedIDs
+        updatedIDs.remove(updatedDevice.id)
+        
+        return (updatedDevice, updatedIDs)
+    }
+    
+    
     func toggleStatus(for device: Device) {
-        if let index = devices.firstIndex(where: { $0.id == device.id }) {
-            devices[index].isOnline.toggle()
-            if !devices[index].isOnline {
-                devices[index].lastSeen = Date()
-            }
+        guard let index = devices.firstIndex(where: { $0.id == device.id }) else { return }
+        
+        if devices[index].batteryLevel == 0, devices[index].isOnline == false {
+            return
+        }
+        
+        devices[index].isOnline.toggle()
+        if !devices[index].isOnline {
+            devices[index].lastSeen = Date()
         }
         manuallyToggledIDs.insert(device.id)
     }
@@ -73,6 +120,12 @@ final class DeviceListViewModel: ObservableObject {
     }
     
     deinit {
-        timer?.invalidate()
+        timerCancellable?.cancel()
     }
 }
+
+#if DEBUG
+extension DeviceListViewModel {
+    func test_updateStatuses() { updateStatuses() }
+}
+#endif
