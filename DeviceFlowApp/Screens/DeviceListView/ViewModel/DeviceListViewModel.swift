@@ -3,10 +3,11 @@ import Combine
 
 @MainActor
 final class DeviceListViewModel: ObservableObject {
-    @Published var devices: [Device] = []
-    @Published var showBatteryAlert = false
+    @Published private(set) var devices: [Device] = []
+    @Published private(set) var showBatteryAlert = false
     
-    let provider: DevicesProvider
+    private let provider: DevicesProvider
+    private let formatter = RelativeDateTimeFormatter()
     private var manuallyToggledIDs: Set<UUID> = []
     private var timerCancellable: AnyCancellable?
     
@@ -22,6 +23,10 @@ final class DeviceListViewModel: ObservableObject {
     func refresh() async {
         devices = provider.fetchInitialDevices()
         manuallyToggledIDs.removeAll()
+    }
+    
+    func setShowBatteryAlert(_ value: Bool) {
+        showBatteryAlert = value
     }
     
     private func startTimer() {
@@ -113,7 +118,6 @@ final class DeviceListViewModel: ObservableObject {
         if device.isOnline {
             return "Online".localized()
         } else {
-            let formatter = RelativeDateTimeFormatter()
             formatter.unitsStyle = .short
             return "Last seen: \(formatter.localizedString(for: device.lastSeen, relativeTo: Date()))"
         }

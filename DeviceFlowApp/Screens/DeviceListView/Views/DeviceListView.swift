@@ -31,8 +31,14 @@ struct DeviceListView: View {
             .refreshable {
                 await viewModel.refresh()
             }
-            .alert("Low Battery!", isPresented: $viewModel.showBatteryAlert) {
-                Button("OK", role: .cancel) { }
+            .alert(
+                "Low Battery!".localized(),
+                isPresented: Binding(
+                    get: { viewModel.showBatteryAlert },
+                    set: { viewModel.setShowBatteryAlert($0) }
+                )
+            ) {
+                Button("OK".localized(), role: .cancel) { }
             }
             .navigationTitle("Devices".localized())
         }
